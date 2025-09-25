@@ -87,9 +87,9 @@ export const getAllProblems = async(req, res) =>{
     }
 }
 
-export const getProblemById = async(req, res)=>{
+export const getProblemById = async (req, res) => { 
 
-    const { id } = req.param;
+    const { id } = req.params;
 
     const problem = await db.problem.findUnique({
         where: {
@@ -110,8 +110,109 @@ export const getProblemById = async(req, res)=>{
 
 }
 
-export const updateProblem = async(req, res)=>{}
+export const updateProblem = async (req, res) => {
+    const { id } = req.params;
 
-export const deleteProblem = async(req, res)=>{}
+    const problem = await db.problem.findUnique(id)
 
-export const getAllProblemsSolvedByUser = async (req, res)=>{}
+    if (!problem) {
+        return res.status(404).json({
+            error: "Problem id not found ❌"
+        })
+    }
+
+    const { title, description, difficulty, tags, example, constraints, testcases, codeSnippets, refrenceSolution } = req.body;
+
+    if (req.user !== "ADMIN") {
+        return res.status(403).json({
+            error: "You are not allowed to create a problem"
+        })
+    }
+
+    try {
+        for (const [language, solutionCode] of object.entries(refrenceSolution)) {
+            const languageId = getJudge0Id(language)
+
+            if (!languageId) {
+                return res.status(400).json({
+                    error: `Language ${language} is not supported`
+                })
+            }
+
+            const submissions = testcases.map(({ input, output }) => ({
+                source_code: solutionCode,
+                language_id: languageId,
+                stdin: input,
+                expected_output: output,
+            }))
+
+            const submissionResults = await submitBatch(submissions)
+
+            const tokens = submissionResults.map((res) => res.token)
+
+            const results = await poolBatchResults(tokens)
+
+            for (let i = 0; i < results.length; i++) {
+                const result = results[i]
+
+                if (result.status.id !== 3) {
+                    return res.status(400).json({
+                        error: `Testcase ${i + 1} failed for language ${language}`
+                    })
+                }
+            }
+            const newProblem = await db.problem.update({
+
+                where: {
+                    id: id
+                },
+                data: {
+                    title, description, difficulty, tags, example, constraints, testcases, codeSnippets, refrenceSolution,
+                    userId: req.user.id,
+                }
+
+            })
+
+            return res.status(201).json({
+                message: "Problem create successfully",
+                problem: newProblem
+            })
+
+        }
+    } catch (error) {
+        console.log("Error", error)
+        return res.status(401).json({
+            error: "Proble can't added"
+        })
+    }
+}
+
+export const deleteProblem = async (req, res) => {
+    const { id } = req.params
+
+    try {
+        const problem = await db.problem.findUnique({ where: { id } })
+
+        if (!problem) {
+            return res.status(404).json({
+                error: "Problem not found!"
+            })
+        }
+
+        await db.problem.delete({ where: { id } })
+
+        res.status(200).json({
+            success: "Problem Deleted Successfully 🔪"
+        })
+
+    } catch (error) {
+        return res.status(500).json({
+            error: "Error in fatch"
+        })
+    }
+
+}
+
+export const getAllProblemsSolvedByUser = async (req, res) => {
+
+}
