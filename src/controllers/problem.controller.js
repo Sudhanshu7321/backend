@@ -88,7 +88,26 @@ export const getAllProblems = async(req, res) =>{
 }
 
 export const getProblemById = async(req, res)=>{
-    
+
+    const { id } = req.param;
+
+    const problem = await db.problem.findUnique({
+        where: {
+            id
+        }
+    })
+
+    if (!problem) {
+        return res.status(404).json({
+            error: "Invalid Id"
+        })
+    }
+
+    return res.status(201).json({
+        message: "Problem Found ✅",
+        problem
+    })
+
 }
 
 export const updateProblem = async(req, res)=>{}
